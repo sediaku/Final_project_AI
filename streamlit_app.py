@@ -111,7 +111,7 @@ if 'model' not in st.session_state:
         else:
             st.error("Please enter a valid file ID.")
 
-Sample data with direct Google Photos image URLs
+#Sample data with direct Google Photos image URLs
 products = [
     {"id": 1, "name": "Red Dress", "description": "A beautiful red dress.", "price": 49.99},
     {"id": 2, "name": "Blue Shoes", "description": "Stylish blue shoes.", "price": 79.99},
