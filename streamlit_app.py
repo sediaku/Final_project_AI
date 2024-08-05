@@ -12,20 +12,56 @@ from transformers import AutoTokenizer, BertTokenizer, BertForSequenceClassifica
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from google.colab import drive
-drive.mount('/content/drive')
+import requests
+import zipfile
+import io
 
+# Download file from Google Drive
+def download_file_from_google_drive(file_id, destination):
+    URL = f"https://drive.google.com/uc?export=download&id={file_id}"
+    response = requests.get(URL, stream=True)
+    if response.status_code == 200:
+        with open(destination, "wb") as f:
+            for chunk in response.iter_content(1024):
+                if chunk:
+                    f.write(chunk)
+    else:
+        st.error("Failed to download file.")
 
-# Load pre-trained BERT model and tokenizer
-model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=5)
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+# Load the model
+def load_model(model_path):
+    model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=5)
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
+    model.eval()
+    return model
 
-# Load AI model
-device = torch.device('cpu')
-model.to(device)
-file_path = '/content/drive/MyDrive/model.bin'
-model.load_state_dict(torch.load(file_path, map_location=torch.device('cpu')), strict=False)
-model.eval()
+# Function to get a single prediction
+def get_single_prediction(text, model):
+    df = pd.DataFrame()
+    df['text'] = [text]
+    df['stars'] = ['0']
+
+    dataset = ReviewsDataset(df)
+
+    TEST_BATCH_SIZE = 1
+    NUM_WORKERS = 1
+
+    test_params = {'batch_size': TEST_BATCH_SIZE, 'shuffle': True, 'num_workers': NUM_WORKERS}
+    data_loader = DataLoader(dataset, **test_params)
+
+    total_examples = len(df)
+    predictions = np.zeros([total_examples], dtype=object)
+
+    for batch, data in enumerate(data_loader):
+        input_ids = data['input_ids'].to(device)
+        mask = data['attn_mask'].to(device)
+
+        outputs = model(input_ids, mask)
+        probs = torch.softmax(outputs[0], dim=1)
+        big_val, big_idx = torch.max(probs, dim=1)
+        star_predictions = (big_idx + 1).cpu().numpy()
+
+        return star_predictions[0]
 
 class ReviewsDataset(Dataset):
     def __init__(self, data, max_length=512):
@@ -41,11 +77,11 @@ class ReviewsDataset(Dataset):
         label = int(self.data.loc[idx, 'stars']) - 1
 
         encoded = self.tokenizer(
-            review,  # Review to encode.
+            review,
             add_special_tokens=True,
-            max_length=self.max_length,  # Truncate all segments to max_length.
-            padding='max_length',  # Pad all reviews with the [PAD] token to the max_length.
-            return_attention_mask=True,  # Construct attention masks.
+            max_length=self.max_length,
+            padding='max_length',
+            return_attention_mask=True,
             truncation=True
         )
 
@@ -58,76 +94,26 @@ class ReviewsDataset(Dataset):
             'label': torch.tensor(label)
         }
 
-def get_single_prediction(text, model):
-    df = pd.DataFrame()
-    df['text'] = [text]
-    df['stars'] = ['0']
-
-    dataset = ReviewsDataset(df)
-
-    TEST_BATCH_SIZE = 1
-    NUM_WORKERS = 1
-
-    test_params = {'batch_size': TEST_BATCH_SIZE,
-                   'shuffle': True,
-                   'num_workers': NUM_WORKERS}
-
-    data_loader = DataLoader(dataset, **test_params)
-
-    total_examples = len(df)
-    predictions = np.zeros([total_examples], dtype=object)
-
-    for batch, data in enumerate(data_loader):
-        input_ids = data['input_ids'].to(device)
-        mask = data['attn_mask'].to(device)
-
-        outputs = model(input_ids, mask)
-
-        probs = torch.softmax(outputs[0], dim=1)
-        big_val, big_idx = torch.max(probs, dim=1)
-        star_predictions = (big_idx + 1).cpu().numpy()
-
-        return star_predictions[0]
-
-# Sample data with direct Google Photos image URLs
-products = [
-    {"id": 1, "name": "Red Dress", "description": "A beautiful red dress.", "price": 49.99},
-    {"id": 2, "name": "Blue Shoes", "description": "Stylish blue shoes.", "price": 79.99},
-    {"id": 3, "name": "Green Top", "description": "A comfortable green top.", "price": 29.99},
-    {"id": 4, "name": "Yellow Skirt", "description": "A bright yellow skirt.", "price": 39.99},
-    {"id": 5, "name": "Purple Jacket", "description": "A warm purple jacket.", "price": 99.99},
-]
-
-reviews = [
-    {"product_id": 1, "user": "Alice", "comment": "Loved it!", "rating": 5},
-    {"product_id": 1, "user": "Bob", "comment": "Great dress!", "rating": 4},
-    {"product_id": 1, "user": "Charlie", "comment": "Perfect for a night out!", "rating": 5},
-    {"product_id": 2, "user": "David", "comment": "Very comfortable.", "rating": 4},
-    {"product_id": 2, "user": "Emily", "comment": "Love the color!", "rating": 5},
-    {"product_id": 2, "user": "Frank", "comment": "Great shoes!", "rating": 4},
-    {"product_id": 3, "user": "George", "comment": "Great top!", "rating": 4},
-    {"product_id": 3, "user": "Hannah", "comment": "Love the color!", "rating": 5},
-    {"product_id": 3, "user": "Isaac","comment": "Perfect for casual wear!", "rating": 4},
-    {"product_id": 4, "user": "Julia", "comment": "Great skirt!", "rating": 4},
-    {"product_id": 4, "user": "Kevin", "comment": "Love the color!", "rating": 5},
-    {"product_id": 4, "user": "Lily", "comment": "Perfect for a summer day!", "rating": 4},
-    {"product_id": 5, "user": "Matthew", "comment": "Great jacket!", "rating": 4},
-    {"product_id": 5, "user": "Natalie", "comment": "Love the color!", "rating": 5},
-    {"product_id": 5, "user": "Owen", "comment": "Perfect for cold weather!", "rating": 4},
-]
-
 # Set up session state for navigation
-if 'elected_product' not in st.session_state:
+if 'selected_product' not in st.session_state:
     st.session_state['selected_product'] = None
 
-# Function to reset selected product
-def reset_selection():
-    st.session_state['selected_product'] = None
+# Load BERT model from Google Drive
+if 'model' not in st.session_state:
+    st.write("Downloading BERT model from Google Drive...")
+    file_id = st.text_input("https://drive.google.com/file/d/1wIszhqa1NQQs_Lx21u8oiOrK-12s_fiw/view?usp=drive_link")
+    if st.button("Download and Load Model"):
+        if file_id:
+            model_file = "bert_model.bin"  # Set your desired file name
+            download_file_from_google_drive(file_id, model_file)
+            st.session_state['model'] = load_model(model_file)
+            st.session_state['device'] = torch.device('cpu')
+            st.success("Model loaded successfully.")
+        else:
+            st.error("Please enter a valid file ID.")
 
 # Display homepage or product detail page based on selection
 if st.session_state['selected_product'] is None:
-    # Homepage
-
     st.title("Petite Clothing and Shoe Store")
     st.write("Welcome to our store! Click on a product to view more details.")
 
@@ -155,12 +141,16 @@ else:
         st.success("Review submitted!")
 
         # Get AI model prediction
-        prediction = get_single_prediction(comment, model)
-        st.write(f"Predicted rating: {prediction}/5")
+        if 'model' in st.session_state:
+            prediction = get_single_prediction(comment, st.session_state['model'])
+            st.write(f"Predicted rating: {prediction}/5")
+        else:
+            st.error("Model not loaded.")
 
     # Button to go back to homepage
     if st.button("Back to Home"):
-        reset_selection()
+        st.session_state['selected_product'] = None
+
 
 
 
