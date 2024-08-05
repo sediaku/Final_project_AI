@@ -3,3 +3,6 @@ torch
 pandas
 numpy
 transformers
+zipfile
+requests
+io
