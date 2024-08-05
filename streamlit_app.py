@@ -163,6 +163,6 @@ else:
     # Button to go back to homepage
     if st.button("Back to Home"):
         reset_selection()
-
+!streamlit run app.py
 
 
