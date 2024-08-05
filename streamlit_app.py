@@ -111,6 +111,41 @@ if 'model' not in st.session_state:
         else:
             st.error("Please enter a valid file ID.")
 
+Sample data with direct Google Photos image URLs
+products = [
+    {"id": 1, "name": "Red Dress", "description": "A beautiful red dress.", "price": 49.99},
+    {"id": 2, "name": "Blue Shoes", "description": "Stylish blue shoes.", "price": 79.99},
+    {"id": 3, "name": "Green Top", "description": "A comfortable green top.", "price": 29.99},
+    {"id": 4, "name": "Yellow Skirt", "description": "A bright yellow skirt.", "price": 39.99},
+    {"id": 5, "name": "Purple Jacket", "description": "A warm purple jacket.", "price": 99.99},
+]
+
+reviews = [
+    {"product_id": 1, "user": "Alice", "comment": "Loved it!", "rating": 5},
+    {"product_id": 1, "user": "Bob", "comment": "Great dress!", "rating": 4},
+    {"product_id": 1, "user": "Charlie", "comment": "Perfect for a night out!", "rating": 5},
+    {"product_id": 2, "user": "David", "comment": "Very comfortable.", "rating": 4},
+    {"product_id": 2, "user": "Emily", "comment": "Love the color!", "rating": 5},
+    {"product_id": 2, "user": "Frank", "comment": "Great shoes!", "rating": 4},
+    {"product_id": 3, "user": "George", "comment": "Great top!", "rating": 4},
+    {"product_id": 3, "user": "Hannah", "comment": "Love the color!", "rating": 5},
+    {"product_id": 3, "user": "Isaac","comment": "Perfect for casual wear!", "rating": 4},
+    {"product_id": 4, "user": "Julia", "comment": "Great skirt!", "rating": 4},
+    {"product_id": 4, "user": "Kevin", "comment": "Love the color!", "rating": 5},
+    {"product_id": 4, "user": "Lily", "comment": "Perfect for a summer day!", "rating": 4},
+    {"product_id": 5, "user": "Matthew", "comment": "Great jacket!", "rating": 4},
+    {"product_id": 5, "user": "Natalie", "comment": "Love the color!", "rating": 5},
+    {"product_id": 5, "user": "Owen", "comment": "Perfect for cold weather!", "rating": 4},
+]
+
+# Set up session state for navigation
+if 'elected_product' not in st.session_state:
+    st.session_state['selected_product'] = None
+
+# Function to reset selected product
+def reset_selection():
+    st.session_state['selected_product'] = None
+
 # Display homepage or product detail page based on selection
 if st.session_state['selected_product'] is None:
     st.title("Petite Clothing and Shoe Store")
