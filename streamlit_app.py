@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import requests
-import io
+
 
 # Download file from Google Drive
 def download_file_from_google_drive(file_id, destination):
