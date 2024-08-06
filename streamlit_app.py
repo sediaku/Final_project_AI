@@ -12,55 +12,23 @@ from transformers import AutoTokenizer, BertTokenizer, BertForSequenceClassifica
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-import requests
+
+Load pre-trained BERT model and tokenizer
+model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=5)
+tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+
+# Load pre-trained BERT model and tokenizer from Hugging Face Model Hub
+model_name = "bert-base-uncased"
+model = BertForSequenceClassification.from_pretrained(model_name, num_labels=5)
+tokenizer = BertTokenizer.from_pretrained(model_name)
+
+# Set up the device
+device = torch.device('cpu')
+model.to(device)
 
 
-# Download file from Google Drive
-def download_file_from_google_drive(file_id, destination):
-    URL = f"https://drive.google.com/uc?export=download&id={file_id}"
-    response = requests.get(URL, stream=True)
-    if response.status_code == 200:
-        with open(destination, "wb") as f:
-            for chunk in response.iter_content(1024):
-                if chunk:
-                    f.write(chunk)
-    else:
-        st.error("Failed to download file.")
-
-# Load the model
-def load_model(model_path):
-    model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=5)
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
-    model.eval()
-    return model
-
-# Function to get a single prediction
-def get_single_prediction(text, model):
-    df = pd.DataFrame()
-    df['text'] = [text]
-    df['stars'] = ['0']
-
-    dataset = ReviewsDataset(df)
-
-    TEST_BATCH_SIZE = 1
-    NUM_WORKERS = 1
-
-    test_params = {'batch_size': TEST_BATCH_SIZE, 'shuffle': True, 'num_workers': NUM_WORKERS}
-    data_loader = DataLoader(dataset, **test_params)
-
-    total_examples = len(df)
-    predictions = np.zeros([total_examples], dtype=object)
-
-    for batch, data in enumerate(data_loader):
-        input_ids = data['input_ids'].to(device)
-        mask = data['attn_mask'].to(device)
-
-        outputs = model(input_ids, mask)
-        probs = torch.softmax(outputs[0], dim=1)
-        big_val, big_idx = torch.max(probs, dim=1)
-        star_predictions = (big_idx + 1).cpu().numpy()
-
-        return star_predictions[0]
+model.eval()
+data = pd.read_csv('https://raw.githubusercontent.com/cynthialmy/DataVizLab/main/yelp_dataset/yelp.csv')
 
 class ReviewsDataset(Dataset):
     def __init__(self, data, max_length=512):
@@ -93,25 +61,38 @@ class ReviewsDataset(Dataset):
             'label': torch.tensor(label)
         }
 
-# Set up session state for navigation
-if 'selected_product' not in st.session_state:
-    st.session_state['selected_product'] = None
+def get_single_prediction(text, model):
+    df = pd.DataFrame()
+    df['text'] = [text]
+    df['stars'] = ['0']
 
-# Load BERT model from Google Drive
-if 'model' not in st.session_state:
-    st.write("Downloading BERT model from Google Drive...")
-    file_id = st.text_input("https://drive.google.com/file/d/1wIszhqa1NQQs_Lx21u8oiOrK-12s_fiw/view?usp=drive_link")
-    if st.button("Download and Load Model"):
-        if file_id:
-            model_file = "bert_model.bin"  # Set your desired file name
-            download_file_from_google_drive(file_id, model_file)
-            st.session_state['model'] = load_model(model_file)
-            st.session_state['device'] = torch.device('cpu')
-            st.success("Model loaded successfully.")
-        else:
-            st.error("Please enter a valid file ID.")
+    dataset = ReviewsDataset(df)
 
-#Sample data with direct Google Photos image URLs
+    TEST_BATCH_SIZE = 1
+    NUM_WORKERS = 1
+
+    test_params = {'batch_size': TEST_BATCH_SIZE,
+                   'shuffle': True,
+                   'num_workers': NUM_WORKERS}
+
+    data_loader = DataLoader(dataset, **test_params)
+
+    total_examples = len(df)
+    predictions = np.zeros([total_examples], dtype=object)
+
+    for batch, data in enumerate(data_loader):
+        input_ids = data['input_ids'].to(device)
+        mask = data['attn_mask'].to(device)
+
+        outputs = model(input_ids, mask)
+
+        probs = torch.softmax(outputs[0], dim=1)
+        big_val, big_idx = torch.max(probs, dim=1)
+        star_predictions = (big_idx + 1).cpu().numpy()
+
+        return star_predictions[0]
+
+# Sample data with direct Google Photos image URLs
 products = [
     {"id": 1, "name": "Red Dress", "description": "A beautiful red dress.", "price": 49.99},
     {"id": 2, "name": "Blue Shoes", "description": "Stylish blue shoes.", "price": 79.99},
@@ -139,7 +120,7 @@ reviews = [
 ]
 
 # Set up session state for navigation
-if 'elected_product' not in st.session_state:
+if 'selected_product' not in st.session_state:
     st.session_state['selected_product'] = None
 
 # Function to reset selected product
@@ -148,6 +129,8 @@ def reset_selection():
 
 # Display homepage or product detail page based on selection
 if st.session_state['selected_product'] is None:
+    # Homepage
+
     st.title("Petite Clothing and Shoe Store")
     st.write("Welcome to our store! Click on a product to view more details.")
 
@@ -170,21 +153,14 @@ else:
     user = st.text_input("Your Name")
     comment = st.text_area("Comment")
     if st.button("Submit Review"):
-        new_review = {"product_id": product['id'], "user": user, "comment": comment}
+        new_review = {"product_id": product['id'], "user": user, "comment": comment, "rating": 0}
         reviews.append(new_review)
         st.success("Review submitted!")
 
         # Get AI model prediction
-        if 'model' in st.session_state:
-            prediction = get_single_prediction(comment, st.session_state['model'])
-            st.write(f"Predicted rating: {prediction}/5")
-        else:
-            st.error("Model not loaded.")
+        prediction = get_single_prediction(comment, model)
+        st.write(f"Predicted rating: {prediction}/5")
 
     # Button to go back to homepage
     if st.button("Back to Home"):
-        st.session_state['selected_product'] = None
-
-
-
-
+        reset_selection()
