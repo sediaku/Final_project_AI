@@ -13,11 +13,7 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
-Load pre-trained BERT model and tokenizer
-model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=5)
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-
-# Load pre-trained BERT model and tokenizer from Hugging Face Model Hub
+# Load pre-trained BERT model and tokenizer 
 model_name = "bert-base-uncased"
 model = BertForSequenceClassification.from_pretrained(model_name, num_labels=5)
 tokenizer = BertTokenizer.from_pretrained(model_name)
